@@ -1,0 +1,12 @@
+[package]
+name = "omni-terminal"
+version.workspace = true
+edition.workspace = true
+description = "Physics-based terminal visualization (neuroflux integration)"
+
+[dependencies]
+ratatui.workspace = true
+crossterm.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true

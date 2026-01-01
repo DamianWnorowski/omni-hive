@@ -1,0 +1,38 @@
+[package]
+name = "omni-core"
+version.workspace = true
+edition.workspace = true
+description = "OMNI-HIVE Core Daemon - Main orchestration engine"
+
+[[bin]]
+name = "omni-hive"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace deps
+tokio.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+dashmap.workspace = true
+crossbeam.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+dirs.workspace = true
+
+# Internal crates
+omni-brain = { path = "../omni-brain" }
+omni-chain = { path = "../omni-chain" }
+omni-portal = { path = "../omni-portal" }
+omni-ir = { path = "../omni-ir" }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
