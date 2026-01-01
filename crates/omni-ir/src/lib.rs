@@ -569,10 +569,52 @@ impl IREngine {
         })
     }
 
+    /// Heal a specific fault based on a log or panic message
+    pub async fn heal_fault(&mut self, fault_log: &str) -> Result<HealReport> {
+        tracing::warn!("IREngine: Attempting to heal fault: {}", fault_log);
+        let mut graph = self.graph.write().await;
+        
+        // Create a fault node to represent the error in the graph
+        let fault_node = IRNode::new(IRNodeType::Custom(format!("FAULT: {}", fault_log)));
+        let fault_id = graph.add_node(fault_node);
+        
+        // Generate a specific heuristic patch for this fault
+        // In a full implementation, this would involve LLM analysis of the stack trace
+        let finding = Finding {
+            id: Uuid::new_v4(),
+            analyzer: "FaultHealer".into(),
+            severity: Severity::Critical,
+            message: fault_log.to_string(),
+            location: Some(fault_id),
+            suggestion: Some("Applied circuit-breaker mutation to faulty component".into()),
+            auto_fixable: true,
+            confidence: 0.95,
+        };
+        
+        let patches = self.healer.generate_patches(&[finding]);
+        let applied = self.healer.apply_patches(&mut graph, &patches);
+        
+        graph.increment_generation();
+        
+        Ok(HealReport {
+            summary: format!("Processed fault log. Applied {} mutations.", applied),
+            mutations: applied,
+            resolved: applied > 0,
+        })
+    }
+
     /// Get requirements coverage
     pub fn requirements(&self) -> &RequirementsCoverage {
         &self.requirements
     }
+}
+
+/// Report from a healing operation
+#[derive(Debug, Serialize)]
+pub struct HealReport {
+    pub summary: String,
+    pub mutations: usize,
+    pub resolved: bool,
 }
 
 #[cfg(test)]

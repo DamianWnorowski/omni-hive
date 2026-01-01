@@ -28,6 +28,9 @@ pub struct AdaptiveScheduler {
 
     /// Active mode duration
     active_duration: Duration,
+
+    /// Current backoff multiplier
+    backoff_multiplier: AtomicU64,
 }
 
 impl AdaptiveScheduler {
@@ -40,6 +43,7 @@ impl AdaptiveScheduler {
             active: AtomicBool::new(false),
             burst_duration: Duration::from_secs(30),
             active_duration: Duration::from_secs(300),
+            backoff_multiplier: AtomicU64::new(1),
         }
     }
 
@@ -47,6 +51,7 @@ impl AdaptiveScheduler {
     pub async fn get_interval(&self) -> Duration {
         let last = *self.last_activity.read().await;
         let elapsed = last.elapsed();
+        let multiplier = self.backoff_multiplier.load(Ordering::Relaxed);
 
         let ms = if elapsed < self.burst_duration {
             // Burst mode: user just did something
@@ -59,7 +64,21 @@ impl AdaptiveScheduler {
             self.idle_ms.load(Ordering::Relaxed)
         };
 
-        Duration::from_millis(ms)
+        Duration::from_millis(ms * multiplier)
+    }
+
+    /// Increase backoff due to failure
+    pub async fn backoff(&self) {
+        let current = self.backoff_multiplier.load(Ordering::Relaxed);
+        if current < 32 { // Max 32x backoff
+            self.backoff_multiplier.store(current * 2, Ordering::Relaxed);
+            tracing::warn!("Scheduler: Backoff increased to {}x due to failures.", current * 2);
+        }
+    }
+
+    /// Reset backoff after success
+    pub async fn reset_backoff(&self) {
+        self.backoff_multiplier.store(1, Ordering::Relaxed);
     }
 
     /// Record user activity (triggers burst mode)

@@ -104,31 +104,31 @@ Create a config file at `~/.config/omni-hive/config.json`:
 
 ### REST API
 
-When running, OMNI-HIVE exposes a REST API on port 7777:
+When running, OMNI-HIVE exposes a REST API on port 9999:
 
 ```bash
 # Health check
-curl http://localhost:7777/health
+curl http://localhost:9999/health
 
 # System status
-curl http://localhost:7777/status
+curl http://localhost:9999/status
 
 # List agents
-curl http://localhost:7777/agents
+curl http://localhost:9999/agents
 
 # Spawn agent
-curl -X POST http://localhost:7777/agents/spawn \
+curl -X POST http://localhost:9999/agents/spawn \
   -H "Content-Type: application/json" \
   -d '{"name": "analyzer", "type": "reasoning"}'
 
 # Trigger evolution
-curl -X POST http://localhost:7777/agents/evolve
+curl -X POST http://localhost:9999/agents/evolve
 
 # Brain usage
-curl http://localhost:7777/brain/usage
+curl http://localhost:9999/brain/usage
 
 # Portal search
-curl -X POST http://localhost:7777/portal/search \
+curl -X POST http://localhost:9999/portal/search \
   -H "Content-Type: application/json" \
   -d '{"query": "code review discussion"}'
 ```

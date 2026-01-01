@@ -436,6 +436,7 @@ pub struct ChainOrchestrator {
     config: ChainConfig,
     macro_agent: Arc<MacroAgent>,
     matrix: Arc<RwLock<HyperbeastMatrix>>,
+    stability: Arc<StabilityTracker>,
     running: AtomicBool,
 }
 
@@ -450,8 +451,19 @@ impl ChainOrchestrator {
             config: config.clone(),
             macro_agent: Arc::new(MacroAgent::new("root")),
             matrix: Arc::new(RwLock::new(matrix)),
+            stability: Arc::new(StabilityTracker::new()),
             running: AtomicBool::new(false),
         })
+    }
+
+    /// Record an operation result for stability tracking
+    pub fn record_op(&self, success: bool, is_critical: bool) {
+        self.stability.record(success, is_critical);
+    }
+
+    /// Get current stability metrics
+    pub fn stability_metrics(&self) -> StabilityMetrics {
+        self.stability.metrics()
     }
 
     /// Execute chains in parallel
@@ -459,6 +471,11 @@ impl ChainOrchestrator {
         self.running.store(true, Ordering::Relaxed);
         let matrix = self.matrix.read().await;
         let results = matrix.execute_parallel(chains).await?;
+        
+        for res in &results {
+            self.record_op(res.errors == 0, res.errors > 5);
+        }
+        
         self.running.store(false, Ordering::Relaxed);
         Ok(results)
     }
@@ -484,6 +501,57 @@ impl ChainOrchestrator {
     pub fn macro_agent(&self) -> &MacroAgent {
         &self.macro_agent
     }
+}
+
+/// Tracker for system stability and error reduction
+pub struct StabilityTracker {
+    total_ops: AtomicU64,
+    successes: AtomicU64,
+    critical_faults: AtomicU64,
+    start_time: Instant,
+}
+
+impl StabilityTracker {
+    pub fn new() -> Self {
+        Self {
+            total_ops: AtomicU64::new(0),
+            successes: AtomicU64::new(0),
+            critical_faults: AtomicU64::new(0),
+            start_time: Instant::now(),
+        }
+    }
+
+    pub fn record(&self, success: bool, is_critical: bool) {
+        self.total_ops.fetch_add(1, Ordering::Relaxed);
+        if success {
+            self.successes.fetch_add(1, Ordering::Relaxed);
+        } else if is_critical {
+            self.critical_faults.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn metrics(&self) -> StabilityMetrics {
+        let total = self.total_ops.load(Ordering::Relaxed);
+        let success = self.successes.load(Ordering::Relaxed);
+        let critical = self.critical_faults.load(Ordering::Relaxed);
+        
+        StabilityMetrics {
+            total_operations: total,
+            success_rate: if total > 0 { success as f32 / total as f32 } else { 1.0 },
+            critical_error_rate: if total > 0 { critical as f32 / total as f32 } else { 0.0 },
+            uptime_secs: self.start_time.elapsed().as_secs(),
+            target_attained: total > 100 && (critical as f32 / total as f32) < 0.05,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct StabilityMetrics {
+    pub total_operations: u64,
+    pub success_rate: f32,
+    pub critical_error_rate: f32,
+    pub uptime_secs: u64,
+    pub target_attained: bool,
 }
 
 #[cfg(test)]

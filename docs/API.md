@@ -1,6 +1,6 @@
 # OMNI-HIVE REST API
 
-Base URL: `http://localhost:7777`
+Base URL: `http://localhost:9999`
 
 ## Health & Status
 

@@ -5,7 +5,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use parking_lot::RwLock;
+use tracing::info;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
@@ -237,6 +237,25 @@ impl TokenAwareBrain {
 
             self.evict_low_priority(entries_to_evict);
         }
+    }
+
+    /// Emergency flush of all but the highest importance entries
+    pub async fn emergency_flush(&mut self) {
+        info!("EMERGENCY FLUSH: Clearing context bus due to critical pressure.");
+        let total_before = self.token_count();
+        
+        // Keep only top 5% of entries by importance
+        let keep_count = (self.entries.len() as f32 * 0.05) as usize;
+        let mut entries: Vec<_> = self.entries.iter().map(|e| e.clone()).collect();
+        entries.sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(Ordering::Equal));
+        
+        let to_remove: Vec<_> = entries.iter().skip(keep_count).map(|e| e.id).collect();
+        for id in to_remove {
+            self.remove_entry(&id);
+        }
+        
+        let freed = total_before - self.token_count();
+        info!("Emergency flush complete. Freed {} tokens.", freed);
     }
 
     /// Get all entries sorted by importance

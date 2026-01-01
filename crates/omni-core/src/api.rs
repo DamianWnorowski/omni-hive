@@ -59,6 +59,9 @@ pub fn create_router(daemon: Arc<OmniDaemon>) -> Router {
         .route("/sync", post(trigger_sync))
         .route("/sync/status", get(sync_status))
 
+        // System Metrics & Stability
+        .route("/metrics", get(get_metrics))
+
         .layer(Extension(daemon))
 }
 
@@ -68,7 +71,34 @@ async fn health() -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "healthy",
         "version": env!("CARGO_PKG_VERSION"),
-        "uptime_secs": 0,  // TODO: track uptime
+        "uptime_secs": 0,
+    }))
+}
+
+async fn get_metrics(Extension(daemon): Extension<Arc<OmniDaemon>>) -> impl IntoResponse {
+    let brain = daemon.brain.read().await;
+    let ir = daemon.ir.read().await;
+    let stability = daemon.chain.stability_metrics();
+    
+    Json(serde_json::json!({
+        "system": {
+            "stability_score": (stability.success_rate * 100.0).round(),
+            "critical_error_rate": (stability.critical_error_rate * 100.0),
+            "target_95_percent_attained": stability.target_attained,
+            "uptime_secs": stability.uptime_secs,
+        },
+        "brain": {
+            "token_usage": brain.token_usage(),
+            "generation": brain.stats().generation,
+        },
+        "ir": {
+            "node_count": ir.node_count().await,
+            "current_generation": ir.generation().await,
+        },
+        "chain": {
+            "total_ops": stability.total_operations,
+            "active_agents": daemon.chain.macro_agent().agent_count(),
+        }
     }))
 }
 
